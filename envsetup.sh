@@ -223,7 +223,7 @@ stoe_config_summary() {
     echo "    BB_NUMBER_THREADS : " $(_stoe_config_read $builddir BB_NUMBER_THREADS)
     echo "    PARALLEL_MAKE     : " $(_stoe_config_read $builddir PARALLEL_MAKE)
     echo ""
-    echo "    BUILD_DIR         : " $(basename $builddir)
+    echo "    BUILDDIR          : " $(basename $builddir)
     echo "    DOWNLOAD_DIR      : " $(_stoe_config_read $builddir DL_DIR)
     echo "    SSTATE_DIR        : " $(_stoe_config_read $builddir SSTATE_DIR)
     echo ""
@@ -465,6 +465,7 @@ eula_check() {
         if [ -n "${!eula_machine}" ]; then
             # The EULA_$MACHINE variable is set in the environment, so we just use it to bypath EULA acceptance check
             _EULA_ACCEPT=${!eula_machine}
+            echo "[INFO] The ${eula_machine} variable is set from the environment to ${!eula_machine} : we use it to for EULA acceptance check."
         else
             # Ask user for EULA acceptance
             eula_askuser "${eula_file}"
@@ -904,7 +905,7 @@ _choice_shell() {
         echo -n "Which one would you like? [${default_choice}] "
         read -r -t $READTIMEOUT answer
         # Check that user has answered before timeout, else break
-        test "$?" -gt "128" && break
+        [ "$?" -gt "128" ] && break
 
         if [ -z "$answer" ]; then
             selection=${default_choice}
@@ -1232,13 +1233,18 @@ do
         return 1
         ;;
     *)
-        #change buildir directory
-        if ! [[ $1 =~ ^build.* ]]; then
-            echo "[ERROR] '$1' : please provide BUILD_DIR with 'build' prefix."
+        if [ -z "${BUILD_DIR}" ]; then
+            # Change buildir directory
+            if ! [[ $1 =~ ^build.* ]]; then
+                echo "[ERROR] '$1' : please provide BUILD_DIR with 'build' prefix."
+                return 1
+            fi
+            # We want BUILD_DIR without any '/' at the end
+            BUILD_DIR=$(echo $1 | sed 's|[/]*$||')
+        else
+            echo "[ERROR] BUILD_DIR is already defined to '${BUILD_DIR}'. Please clarify if you really want to set it to '$1'"
             return 1
         fi
-        #we want BUILD_DIR without any '/' at the end
-        BUILD_DIR=$(echo $1 | sed 's|[/]*$||')
         ;;
     esac
     shift
@@ -1254,7 +1260,7 @@ _stoe_set_env_init
 #
 echo "[HOST DISTRIB check]"
 _stoe_distrib_check
-test "$?" == "1" && { echo "Check aborted: exiting now..."; _stoe_unset; return 1; }
+[ "$?" -eq 1 ] && { echo "Check aborted: exiting now..."; _stoe_unset; return 1; }
 
 #----------------------------------------------
 # Init BUILD_DIR variable
@@ -1268,7 +1274,7 @@ if [ -z "${BUILD_DIR}" ]; then
     # Get existing BUILD_DIR list from baseline
     LISTDIR=$(mktemp)
     for l in $(find ${ROOTOE} -maxdepth 1 -wholename "*/build*"); do
-        test -f ${l}/conf/local.conf && echo ${l#*${ROOTOE}/} >> ${LISTDIR}
+        [ -f ${l}/conf/local.conf ] && echo ${l#*${ROOTOE}/} >> ${LISTDIR}
     done
     # Select any existing BUILD_DIR from list
     if  [ -s ${LISTDIR} ]; then
@@ -1276,21 +1282,23 @@ if [ -z "${BUILD_DIR}" ]; then
         [ -z "${BUILD_DIR}" ] && { echo "Selection escaped: exiting now..."; _stoe_unset; return 1; }
     fi
     # Reset BUILD_DIR in case for new config choice
-    test "${BUILD_DIR}" == "NEW" && BUILD_DIR=""
+    [ "${BUILD_DIR}" = "NEW" ] && BUILD_DIR=""
 else
+    # Make sure BUILD_DIR is uniq
+    [ "$(echo ${BUILD_DIR} | wc -w)" -eq 1 ] || { echo "[ERROR] Provided BUILD_DIR is not uniq. Please make sure to set only one build dir." ; _stoe_unset; return 1; }
     # Check if configuration files exist to force or not INIT
-    test -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf || _INIT=1
-    test -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf || _INIT=1
+    [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] || _INIT=1
+    [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ] || _INIT=1
 fi
 
-if [[ $_INIT -eq 1 ]] || [[ -z "${BUILD_DIR}" ]]; then
+if [ "$_INIT" -eq 1 ] || [ -z "${BUILD_DIR}" ]; then
     # There is no available config in baseline: force init from scratch
     _INIT=1
 
     # Set DISTRO
     if [ -z "$DISTRO" ]; then
         DISTRO_CHOICES=$(_choice_formated_configs distro)
-        test "$?" == "1" && { echo "$DISTRO_CHOICES"; _stoe_unset; return 1; }
+        [ "$?" -eq 1 ] && { echo "$DISTRO_CHOICES"; _stoe_unset; return 1; }
         # Add nodistro option
         DISTRO_CHOICES=$(echo -e "$DISTRO_CHOICES\nnodistro${_FORMAT_PATTERN}*** DEFAULT OPENEMBEDDED SETTING : DISTRO is not defined ***")
         choice DISTRO "$DISTRO_CHOICES"
@@ -1300,17 +1308,17 @@ if [[ $_INIT -eq 1 ]] || [[ -z "${BUILD_DIR}" ]]; then
     # Set MACHINE
     if [ -z "$MACHINE" ]; then
         MACHINE_CHOICES=$(_choice_formated_configs machine)
-        test "$?" == "1" && { echo "$MACHINE_CHOICES"; _stoe_unset; return 1; }
+        [ "$?" -eq 1 ] && { echo "$MACHINE_CHOICES"; _stoe_unset; return 1; }
         choice MACHINE "$MACHINE_CHOICES"
         [ -z "$MACHINE" ] && { echo "Selection escaped: exiting now..."; _stoe_unset; return 1; }
     fi
 
     # Init BUILD_DIR if not yet set
-    test -z "${BUILD_DIR}" && BUILD_DIR="build-${DISTRO//-}-$MACHINE"
+    [ -z "${BUILD_DIR}" ] && BUILD_DIR="build-${DISTRO//-}-$MACHINE"
 
     # Check if BUILD_DIR already exists to use previous config (i.e. set _INIT to 0)
-    test -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf && _INIT=0
-    test -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf && _INIT=0
+    [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] && _INIT=0
+    [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ] && _INIT=0
 
 else
     # Get DISTRO and MACHINE from configuration file
@@ -1344,7 +1352,7 @@ fi
 #----------------------------------------------
 # Init baseline for full INIT if required
 #
-if [[ $_FORCE_RECONF -eq 1 ]] && [[ $_INIT -eq 0 ]]; then
+if [ "$_FORCE_RECONF" -eq 1 ] && [ "$_INIT" -eq 0 ]; then
     echo ""
     echo "[Removing current config from ${ROOTOE}/${BUILD_DIR}/conf]"
     rm -fv ${ROOTOE}/${BUILD_DIR}/conf/*.conf ${ROOTOE}/${BUILD_DIR}/conf/*.txt
@@ -1357,33 +1365,33 @@ fi
 # Standard Openembedded init
 #
 echo -en "[source $_BUILDSYSTEM/oe-init-build-env]"
-[[ $_INIT -eq 1 ]] && echo "[from nothing]"
-[[ $_INIT -eq 0 ]] && echo "[with previous config]"
+[ "$_INIT" -eq 1 ] && echo "[from nothing]"
+[ "$_INIT" -eq 0 ] && echo "[with previous config]"
 get_templateconf
-test "$?" == "1" && { _stoe_unset; return 1; }
+[ "$?" -eq 1 ] && { _stoe_unset; return 1; }
 TEMPLATECONF=${_TEMPLATECONF} source ${ROOTOE}/$_BUILDSYSTEM/oe-init-build-env ${BUILD_DIR} > /dev/null
-test "$?" == "1" && { _stoe_unset; return 1; }
+[ "$?" -eq 1 ] && { _stoe_unset; return 1; }
 
 #----------------------------------------------
 # Init ST DISTRO CODE NAME to use for DL_DIR and SSTATE_DIR path
 #
 get_distrocodename
-test "$?" == "1" && { rm -rf $BUILDDIR/conf/*; _stoe_unset; return 1; }
+[ "$?" -eq 1 ] && { rm -rf $BUILDDIR/conf/*; _stoe_unset; return 1; }
 
 #----------------------------------------------
 # Handle EULA acceptance for ST configurations
 #
-if [[ $_INIT -eq 1 ]]; then
+if [ "$_INIT" -eq 1 ]; then
     echo
     echo "[EULA configuration]"
     eula_check
-    test "$?" == "1" && { rm -rf $BUILDDIR/conf/*; _stoe_unset; return 1; }
+    [ "$?" -eq 1 ] && { rm -rf $BUILDDIR/conf/*; _stoe_unset; return 1; }
 fi
 
 #----------------------------------------------
 # Apply specific ST configurations
 #
-if [[ $_INIT -eq 1 ]]; then
+if [ "$_INIT" -eq 1 ]; then
     echo
     echo "[Configure *.conf files]"
     # Configure site.conf with specific settings
@@ -1404,7 +1412,7 @@ stoe_set_env
 #----------------------------------------------
 # Display when no quiet mode required
 #
-if ! [[ $_QUIET -eq 1 ]]; then
+if ! [ "$_QUIET" -eq 1 ]; then
     # Display current configs
     stoe_config_summary $BUILDDIR
 
@@ -1413,7 +1421,7 @@ if ! [[ $_QUIET -eq 1 ]]; then
         cat $BUILDDIR/conf/conf-notes.txt
     else
         stoe_list_images ${ROOTOE}/${_META_LAYER_ROOT} NOERR FILTER
-        test "$?" == "1" && { _stoe_unset; return 1; }
+        [ "$?" -eq 1 ] && { _stoe_unset; return 1; }
     fi
     echo ""
     echo "You can now run 'bitbake <image>'"
