@@ -12,7 +12,7 @@ _SUPPORTED_UBUNTU_RELEASE="16.04 18.04"
 #----------------------------------------------
 # Set default layer root
 #
-if [ -z $META_LAYER_ROOT ]; then
+if [ -z "$META_LAYER_ROOT" ]; then
     _META_LAYER_ROOT=layers/meta-st
 else
     _META_LAYER_ROOT=$META_LAYER_ROOT
@@ -159,7 +159,7 @@ stoe_list_env() {
 ######################################################
 # init UI_CMD if needed
 _stoe_set_env_init() {
-    if [[ $_ENABLE_UI -eq 1 ]] && [[ -z "${UI_CMD}" ]]; then
+    if [ "$_ENABLE_UI" -eq 1 ] && [ -z "${UI_CMD}" ]; then
         # Init dialog box command if dialog or whiptail is available
         command -v dialog > /dev/null 2>&1 && UI_CMD='dialog'
         command -v whiptail > /dev/null 2>&1 && UI_CMD='whiptail'
@@ -247,7 +247,7 @@ _stoe_list_images_descr() {
         else
             local descr=$(grep "^DESCRIPTION[ \t]*=" $l | sed -e 's/^.*"\(.*\)["\]$/\1/')
         fi
-        if [ -z "$descr" ] && [ "$2" == "ERR" ]; then
+        if [ -z "$descr" ] && [ "$2" = "ERR" ]; then
             descr="[ERROR] No description available"
         fi
         printf "    %-33s  -   $descr\n" $image
@@ -491,7 +491,7 @@ in your images, you need to read and accept the following...\
 " > $EulaIntroFile
 
     # Select mode to dialogue with user
-    if ! [[ -z "$DISPLAY" ]] && ! [[ -z "${UI_CMD}" ]]; then
+    if ! [ -z "$DISPLAY" ] && ! [ -z "${UI_CMD}" ]; then
         # UI mode (through dialogue boxes)
         if (${UI_CMD} --title "EULA management" --yesno "$(cat $EulaIntroFile)" 0 0 --yes-button "Read the EULA" --no-button "EXIT"); then
             if (${UI_CMD} --title "EULA acceptance" --yesno "$(cat $EulaFile)" 0 0 --yes-button "Accept EULA" --no-button "EXIT"); then
@@ -941,7 +941,7 @@ _choice_ui() {
         TARGETTABLE+=($target_name "$target_desc" $target_stat)
     done
     IFS=$old_IFS
-    while [[ -z "$target" ]]
+    while [ -z "$target" ]
     do
         target=$(${UI_CMD} --title "Available ${choice_name}" --radiolist "Please choose a ${choice_name}" 0 0 0 "${TARGETTABLE[@]}" 3>&1 1>&2 2>&3)
         test -z $target || break
@@ -966,10 +966,10 @@ choice() {
     if [[ $(echo "$choices" | wc -l) -eq 1 ]]; then
         eval $__TARGET=$(echo $choices | awk -F''"${_FORMAT_PATTERN}"'' '{print $1}')
     else
-        if ! [[ -z "$DISPLAY" ]] && ! [[ -z "${UI_CMD}" ]]; then
-            _choice_ui $__TARGET "$choices" $default_choice
-        else
+        if [ -z "$DISPLAY" ] || [ -z "${UI_CMD}" ]; then
             _choice_shell $__TARGET "$choices" $default_choice
+        else
+            _choice_ui $__TARGET "$choices" $default_choice
         fi
     fi
     echo "Selected $__TARGET: $(eval echo \$$__TARGET)"
@@ -1029,7 +1029,7 @@ _stoe_distrib_check() {
         echo "    RELEASE: ${_SUPPORTED_UBUNTU_RELEASE}" >> $UbuntuReleaseFile
         echo "Feel free to update your distribution, or to ignore the WARNING (at your risk)..." >> $UbuntuReleaseFile
         # Select mode to dialogue with user
-        if ! [[ -z "$DISPLAY" ]] && ! [[ -z "${UI_CMD}" ]]; then
+        if ! [ -z "$DISPLAY" ] && ! [ -z "${UI_CMD}" ]; then
             # UI mode (through dialogue boxes)
             if (${UI_CMD} --title "UBUNTU RELEASE SUPPORT" --yesno "$(cat $UbuntuReleaseFile)" 0 0 --yes-button "IGNORE WARNING" --no-button "EXIT"); then
                 return_value=0
@@ -1173,8 +1173,8 @@ _verify_env() {
         return
     else
         # Fix build system to use for init: default would be openembedded-core one
-        [[ -d $oe_tmp_pwd/layers/poky ]] && _BUILDSYSTEM=layers/poky
-        [[ -d $oe_tmp_pwd/layers/openembedded-core ]] && _BUILDSYSTEM=layers/openembedded-core
+        [ -d $oe_tmp_pwd/layers/poky ] && _BUILDSYSTEM=layers/poky
+        [ -d $oe_tmp_pwd/layers/openembedded-core ] && _BUILDSYSTEM=layers/openembedded-core
     fi
     if [[ "$__resultvar" ]]; then
         eval $__resultvar="NOERROR"
@@ -1204,6 +1204,8 @@ esac
 
 # Init parameters
 _ENABLE_UI=1
+_FORCE_RECONF=0
+_QUIET=0
 READTIMEOUT=${READTIMEOUT:-60}
 TRIALMAX=${TRIALMAX:-100}
 
@@ -1280,21 +1282,30 @@ if [ -z "${BUILD_DIR}" ]; then
     if  [ -s ${LISTDIR} ]; then
         choice BUILD_DIR "$(_choice_formated_dirs "$(cat ${LISTDIR} | sort)")" $(_default_config_get "$(cat ${LISTDIR} | sort)")
         [ -z "${BUILD_DIR}" ] && { echo "Selection escaped: exiting now..."; _stoe_unset; return 1; }
+        # Check if we need to force or not INIT
+        if [ "${BUILD_DIR}" = "NEW" ]; then
+            _INIT=1
+            # Reset BUILD_DIR for new config choice
+            BUILD_DIR=""
+        else
+            _INIT=0
+        fi
+    else
+        # None previous build dir found so force INIT
+        _INIT=1
     fi
-    # Reset BUILD_DIR in case for new config choice
-    [ "${BUILD_DIR}" = "NEW" ] && BUILD_DIR=""
 else
     # Make sure BUILD_DIR is uniq
     [ "$(echo ${BUILD_DIR} | wc -w)" -eq 1 ] || { echo "[ERROR] Provided BUILD_DIR is not uniq. Please make sure to set only one build dir." ; _stoe_unset; return 1; }
     # Check if configuration files exist to force or not INIT
-    [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] || _INIT=1
-    [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ] || _INIT=1
+    if [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] && [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ]; then
+        _INIT=0
+    else
+        _INIT=1
+    fi
 fi
 
-if [ "$_INIT" -eq 1 ] || [ -z "${BUILD_DIR}" ]; then
-    # There is no available config in baseline: force init from scratch
-    _INIT=1
-
+if [ "$_INIT" -eq 1 ]; then
     # Set DISTRO
     if [ -z "$DISTRO" ]; then
         DISTRO_CHOICES=$(_choice_formated_configs distro)
@@ -1304,7 +1315,6 @@ if [ "$_INIT" -eq 1 ] || [ -z "${BUILD_DIR}" ]; then
         choice DISTRO "$DISTRO_CHOICES"
         [ -z "$DISTRO" ] && { echo "Selection escaped: exiting now..."; _stoe_unset; return 1; }
     fi
-
     # Set MACHINE
     if [ -z "$MACHINE" ]; then
         MACHINE_CHOICES=$(_choice_formated_configs machine)
@@ -1317,8 +1327,9 @@ if [ "$_INIT" -eq 1 ] || [ -z "${BUILD_DIR}" ]; then
     [ -z "${BUILD_DIR}" ] && BUILD_DIR="build-${DISTRO//-}-$MACHINE"
 
     # Check if BUILD_DIR already exists to use previous config (i.e. set _INIT to 0)
-    [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] && _INIT=0
-    [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ] && _INIT=0
+    if [ -f ${ROOTOE}/${BUILD_DIR}/conf/bblayers.conf ] && [ -f ${ROOTOE}/${BUILD_DIR}/conf/local.conf ]; then
+        _INIT=0
+    fi
 
 else
     # Get DISTRO and MACHINE from configuration file
@@ -1337,7 +1348,6 @@ else
         _stoe_unset
         return 1
     fi
-
     # Set MACHINE
     if [ -z "$MACHINE" ]; then
         MACHINE=${MACHINE_INIT}
