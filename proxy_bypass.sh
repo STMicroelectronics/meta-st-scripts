@@ -265,9 +265,9 @@ _proxy_init_env()
     else
         echo "" >> $HOME/.bashrc
         echo "#Proxy by pass variable"  >> $HOME/.bashrc
-        echo "export http_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
-        echo "export https_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
-        echo "export ftp_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
+        echo "export http_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
+        echo "export https_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
+        echo "export ftp_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's,^[^:]*:,,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's,%0a$,,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT"  >> $HOME/.bashrc
         echo "export no_proxy='$LOCAL_NO_PROXY,$STFORGE_NO_PROXY'"  >> $HOME/.bashrc
         chmod 600 $HOME/.bashrc
     fi
@@ -289,9 +289,9 @@ _proxy_set_password_env()
     if [ `grep '^export http_proxy=*' $HOME/.bashrc | wc -l` -eq 1 ];
     then
         echo "Update http_proxy, https_proxy and ftp_proxy in .bashrc"
-        sed -i "s,export http_proxy=.*,export http_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
-        sed -i "s,export https_proxy=.*,export https_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
-        sed -i "s,export ftp_proxy=.*,export ftp_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
+        sed -i "s,export http_proxy=.*,export http_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
+        sed -i "s,export https_proxy=.*,export https_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
+        sed -i "s,export ftp_proxy=.*,export ftp_proxy=http://${LOCAL_PROXY_USERNAME// /%20}:\$(sed 's\,^[^:]*:\,\,' $PROXY_CREDENTIAL_FILE | od -A n -t x1 -w128 | tr ' ' '%' | sed 's\,%0a$\,\,')@$LOCAL_PROXY_HOST:$LOCAL_PROXY_PORT,g" $HOME/.bashrc
     fi
 }
 
