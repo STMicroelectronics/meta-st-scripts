@@ -899,15 +899,13 @@ _choice_shell() {
     IFS=$old_IFS
     # Item selection from list
     local selection=""
-    # Init default_choice if not already provided
-    [ -z "${default_choice}" ] && default_choice=$(echo ${LAUNCH_MENU_CHOICES[0]} | cut -d' ' -f1)
     while [ -z "$selection" ]; do
         echo -n "Which one would you like? [${default_choice}] "
         read -r -t $READTIMEOUT answer
         # Check that user has answered before timeout, else break
         [ "$?" -gt "128" ] && break
 
-        if [ -z "$answer" ]; then
+        if [ [ -z "$answer" ] && [ -n "$default_choice" ] ]; then
             selection=${default_choice}
             break
         fi
