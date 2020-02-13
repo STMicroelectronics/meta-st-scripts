@@ -1,5 +1,7 @@
 #!/bin/bash -
 
+unalias -a
+
 _FORMAT_PATTERN='£-£'
 _SITECONFSAMPLE_PATH=$(dirname $(realpath ${BASH_SOURCE}))
 
