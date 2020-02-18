@@ -181,22 +181,57 @@ _stoe_config_read() {
     local builddir=$(realpath $1)
     local stoe_var=$2
     local findconfig=""
-    if ! [[ -z $(grep -Rs "^[ \t]*$stoe_var[ \t]*=" $builddir/conf/*.conf) ]]; then
-        # Config defined as "=" in conf file
-        findconfig=$(grep -Rs "^[ \t]*$stoe_var[ \t]*=" $builddir/conf/*.conf)
-    elif ! [[ -z $(grep -Rs "^[ \t]*$stoe_var[ \t]*?*=" $builddir/conf/*.conf) ]]; then
+    local findconfig_append=""
+    local toformat="NO"
+
+    if ! [ -z "$(grep -Rs "^[ \t]*$stoe_var[ \t+]*=" $builddir/conf/*.conf)" ]; then
+        # Config defined as "=" or "=+" in conf file
+        if ! [[ -z $(grep -Rs "^[ \t]*$stoe_var[ \t+]*=" $builddir/conf/*.conf | grep -v -e "[ \t]*$stoe_var[ \t]*=+" -e "[ \t]*$stoe_var[ \t]*+=") ]]; then
+            # Config defined as "=" in conf file
+            findconfig=$(grep -Rs "^[ \t]*$stoe_var[ \t+]*=" $builddir/conf/*.conf | grep -v -e "[ \t]*$stoe_var[ \t]*=+" -e "[ \t]*$stoe_var[ \t]*+=")
+            # If multiple config are set, select the one from local.conf file (same as bitbake preference order)
+            [ "$(echo "$findconfig" | wc -l)" -gt 1 ] && findconfig=$(echo "$findconfig" | grep "local\.conf")
+            # Manage to append any "+=" or "=+" to current defined config
+            findconfig_append=$(grep -Rs -e "^[ \t]*$stoe_var[ \t]*+=" -e "^[ \t]*$stoe_var[ \t]*=+" $builddir/conf/*.conf)
+            [ -z "$findconfig_append" ] || findconfig=$(echo -e "$findconfig\n$findconfig_append")
+            toformat="YES"
+        else
+            # Config defined as "=+" or "+=" only in conf file
+            # We do not want to handle such define
+            findconfig="\<some-append-set-to-original-config\>"
+        fi
+    elif ! [[ -z $(grep -Rs "^[ \t]*$stoe_var[ \t?]*=" $builddir/conf/*.conf) ]]; then
         # Config defined as "?=" in conf file
-        findconfig=$(grep -Rs "^[ \t]*$stoe_var[ \t]*?*=" $builddir/conf/*.conf)
-    elif ! [[ -z $(grep -Rs "^[#]*$stoe_var[ \t]*=" $builddir/conf/*.conf) ]]; then
+        findconfig=$(grep -Rs "^[ \t]*$stoe_var[ \t?]*=" $builddir/conf/*.conf)
+        # If multiple config are set, select the one from local.conf file (same as bitbake preference order)
+        [ "$(echo "$findconfig" | wc -l)" -gt 1 ] && findconfig=$(echo "$findconfig" | grep "local\.conf")
+        toformat="YES"
+    elif ! [[ -z $(grep -Rs "^[#]*$stoe_var[ \t+?]*=" $builddir/conf/*.conf) ]]; then
         findconfig="\<disable\>"
     else
         # Config not found
         findconfig="\<no-custom-config-set\>"
     fi
-    # Format config
-    local formatedconfig=$(echo $findconfig | sed -e 's|^.*"\(.*\)".*$|\1|g;s|\${TOPDIR}|\${builddir}|')
-    # Expand and export config
-    eval echo "$formatedconfig"
+
+    if [ "$toformat" = "YES" ]; then
+        # Use tmp file to store formated config(s)
+        TmpConfigFile=$(mktemp)
+        # Format config
+        echo "$findconfig" | sed -e 's|^.*"\([^"]*\)".*$|\1|g;s|\${TOPDIR}|\${builddir}|g' > $TmpConfigFile
+        # Init new tmp file to store expanded config var(s)
+        NewConfigFile=$(mktemp)
+        # Expand config
+        while read l
+        do
+            eval echo $l >> $NewConfigFile
+        done < $TmpConfigFile
+        # Export config
+        cat $NewConfigFile
+        rm -f $NewConfigFile $TmpConfigFile
+    else
+        # Expand and export config
+        eval echo $findconfig
+    fi
 }
 
 ######################################################
@@ -230,7 +265,7 @@ stoe_config_summary() {
     echo "    SSTATE_DIR        : " $(_stoe_config_read $builddir SSTATE_DIR)
     echo ""
     echo "    SOURCE_MIRROR_URL : " $(_stoe_config_read $builddir SOURCE_MIRROR_URL)
-    echo "    SSTATE_MIRRORS    : " $(_stoe_config_read $builddir SSTATE_MIRRORS | sed 's|^.*\(http:.*\)/PATH.*$|\1|')
+    echo "    SSTATE_MIRRORS    : " $(_stoe_config_read $builddir SSTATE_MIRRORS | sed 's|^.*\(http:.*\)/PATH.*$|\1|g')
     echo ""
     echo "    WITH_EULA_ACCEPTED: " $(_stoe_config_read $builddir ACCEPT_EULA_$(_stoe_config_read $builddir MACHINE) | sed 's|0|NO|;s|1|YES|')
     echo ""
