@@ -430,7 +430,7 @@ stoe_sstate_mirror_enable() {
 get_distrocodename()
 {
     #get distro related folder from layer root
-    local distro_dir=$(find ${ROOTOE}/$_META_LAYER_ROOT/ -type d \( -name '.git' -o -name '.repo' -o -name 'build*' -o -name 'source*' -o -name 'script*' \) -prune -o -type d -wholename '*/conf/distro' | grep '.*/conf/distro')
+    local distro_dir=$(find ${ROOTOE}/$_META_LAYER_ROOT/ -type d \( -path '.git' -o -path '.repo' -o -path 'build*' -o -path 'source*' -o -path 'script*' \) -prune -o -type d -wholename '*/conf/distro')
     if [ -z "$distro_dir" ]; then
         echo ""
         echo "[WARNING] No */conf/distro folder available in $_META_LAYER_ROOT layer"
@@ -441,7 +441,7 @@ get_distrocodename()
     fi
 
     #gather DISTRO_CODENAME values
-    _DISTRO_CODENAME=$(grep -Rs '^DISTRO_CODENAME' $distro_dir | sed 's|.*DISTRO_CODENAME[ \t]*=[ \t]*"\(.*\)"[ \t]*$|\1|g'| sort -u)
+    _DISTRO_CODENAME=$(grep --exclude='.*' -Rs '^DISTRO_CODENAME' $distro_dir | sed 's|.*DISTRO_CODENAME[ \t]*=[ \t]*"\(.*\)"[ \t]*$|\1|g'| sort -u)
 
     #make sure that DISTRO_CODENAME is defined and has only one value
     if [ -z "$_DISTRO_CODENAME" ] ; then
@@ -775,6 +775,17 @@ conf_bblayerconf()
         # Get any specific needed layer in machine file
         local _LAYERS=$(grep '^#@NEEDED_BSPLAYERS:' $_MACH_CONF)
         local _BSP=$(echo ${_LAYERS} |cut -f 2 -d ':')
+        # Filter for layer not yet available in current bblayers.conf file
+        if [ -n "${_BSP}" ]; then
+            unset LAYERS_2SET
+            for l in ${_BSP}; do
+                if [[ -z $(grep "${l}[ '\"]" $BUILDDIR/conf/bblayers.conf) ]]; then
+                    LAYERS_2SET+=(${l})
+                fi
+            done
+            # Update _BSP list with filtered layer
+            _BSP="${LAYERS_2SET[@]}"
+        fi
         # Append any required layer list to _BSP list
         if [ -n "$BSP_DEPENDENCY" ]; then
             _BSP="$BSP_DEPENDENCY $_BSP"
@@ -783,7 +794,6 @@ conf_bblayerconf()
             cat >> conf/bblayers.conf <<EOF
 # BSP dependencies"
 EOF
-
             for bsp in $_BSP; do
                 bsp_to_add=$(echo $bsp | tr -d ' ')
                 cat >> conf/bblayers.conf <<EOF
@@ -942,7 +952,7 @@ _choice_shell() {
         # Check that user has answered before timeout, else break
         [ "$?" -gt "128" ] && break
 
-        if [ [ -z "$answer" ] && [ -n "$default_choice" ] ]; then
+        if [ -z "$answer" ] && [ -n "$default_choice" ]; then
             selection=${default_choice}
             break
         fi
