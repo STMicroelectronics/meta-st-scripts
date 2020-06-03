@@ -1427,7 +1427,8 @@ echo -en "[source $_BUILDSYSTEM/oe-init-build-env]"
 [ "$_INIT" -eq 0 ] && echo "[with previous config]"
 get_templateconf
 [ "$?" -eq 1 ] && { _stoe_unset; return 1; }
-TEMPLATECONF=${_TEMPLATECONF} source ${ROOTOE}/$_BUILDSYSTEM/oe-init-build-env ${BUILD_DIR} > /dev/null
+TEMPLATECONF_relative=$( realpath -m --relative-to=${ROOTOE}/$BUILD_DIR/conf $_TEMPLATECONF)
+TEMPLATECONF=${TEMPLATECONF_relative} source ${ROOTOE}/$_BUILDSYSTEM/oe-init-build-env ${BUILD_DIR} > /dev/null
 [ "$?" -eq 1 ] && { _stoe_unset; return 1; }
 
 #----------------------------------------------
