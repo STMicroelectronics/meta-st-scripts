@@ -1186,6 +1186,9 @@ _verify_env() {
 # --
 #
 
+# Setup a signal handler to clear the environement in case of error
+trap '_stoe_unset' SIGHUP SIGINT SIGQUIT SIGABRT
+
 #----------------------------------------------
 # Make sure script has been sourced
 #
