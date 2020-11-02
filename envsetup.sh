@@ -3,13 +3,14 @@
 unalias -a
 
 _FORMAT_PATTERN='£-£'
-_SITECONFSAMPLE_PATH=$(dirname $(realpath ${BASH_SOURCE}))
+_REQUIREDPACKAGE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
+_SITECONFSAMPLE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
 
 #----------------------------------------------
 # Set supported Linux Distrib Release
 #
 _SUPPORTED_LINUX_DISTRIB="Ubuntu"
-_SUPPORTED_UBUNTU_RELEASE="16.04 18.04"
+_SUPPORTED_UBUNTU_RELEASE="16.04 18.04 20.04"
 
 #----------------------------------------------
 # Set default layer root
@@ -76,6 +77,9 @@ _stoe_help_option() {
     echo "      Remove existing configuration files and restore original ones"
     echo "  --no-ui"
     echo "      Disable UI for DISTRO and MACHINE selection"
+    echo "  --pkg-update"
+    echo "      Enable automatic update for required packages, working only on host"
+    echo "      Linux Distribution supported by ST (${_SUPPORTED_LINUX_DISTRIB} ${_SUPPORTED_UBUNTU_RELEASE})"
     echo "  <BUILD_DIR>"
     echo "      Provide specific build folder (should start with 'build' prefix)"
 }
@@ -178,7 +182,7 @@ stoe_set_env() {
 ######################################################
 # extract requested VAR from conf files for BUILD_DIR provided
 _stoe_config_read() {
-    local builddir=$(realpath $1)
+    local builddir=$(readlink -f $1)
     local stoe_var=$2
     local findconfig=""
     local findconfig_append=""
@@ -242,9 +246,9 @@ stoe_config_summary() {
     if [[ $# == 0 ]]; then
         # Override builddir in case of none argument provided
         builddir=$BUILDDIR
-    elif [ $(realpath $1) ]; then
+    elif [ $(readlink -f $1) ]; then
         # Use provided dir as builddir
-        builddir=$(realpath $1)
+        builddir=$(readlink -f $1)
     else
         echo "[ERROR] '$1' is not an existing BUILD_DIR."
         echo ""
@@ -299,9 +303,9 @@ stoe_list_images() {
     if [ "$#" = "0" ]; then
         echo "[ERROR] missing layer path."
         return 1
-    elif [ -e $(realpath $1)/conf/layer.conf ] || [ "$(realpath $1)" = "$(realpath ${ROOTOE}/${_META_LAYER_ROOT})" ]; then
+    elif [ -e $(readlink -f $1)/conf/layer.conf ] || [ "$(readlink -f $1)" = "$(readlink -f ${ROOTOE}/${_META_LAYER_ROOT})" ]; then
         # Use provided dir as metalayer
-        metalayer=$(realpath $1)
+        metalayer=$(readlink -f $1)
     else
         echo "[ERROR] '$1' is not an existing layer."
         echo ""
@@ -1110,15 +1114,127 @@ _stoe_distrib_check() {
                 fi
             done
             # Convert answer to expected return value
-            if [ "$answer" == "yes" ]; then
+            if [ "$answer" = "yes" ]; then
                 return_value=0
             fi
+        fi
+    else
+        # Check for host Linux Distribution package check
+        if [ -e "${_REQUIREDPACKAGE_PATH}/${host_distrib}_${host_release}" ]; then
+            _stoe_packages_check "${_REQUIREDPACKAGE_PATH}/${host_distrib}_${host_release}"
+            [ "$?" -eq 1 ] && return 1
+        else
+            echo "[WARNING] Skip checking for Linux Distrib required package installation."
+            echo "[WARNING] (missing ${host_distrib}_${host_release} file in ${_REQUIREDPACKAGE_PATH} folder)"
+            echo
         fi
     fi
     # Remove temporary file
     rm -f $UbuntuReleaseFile
     return $return_value
 }
+
+######################################################
+# Check if current HOST Linux Distrib has required pacackages
+#
+_stoe_packages_check() {
+    local pack_req_file=$1
+    # Get list of required packages
+    local pack_req_list=$(eval echo $(cat $pack_req_file) | sed 's/ /\n/g' | sort -u)
+    echo "Required packages for Linux Distrib:"
+    echo $pack_req_list
+    echo ""
+    # Get list of host installed packages
+    local host_pack_inst=$(dpkg -l | grep ^ii | cut -d' ' -f3 | cut -d':' -f1 | sort -u)
+    # Get list of required packages already installed on host
+    local installed_packages=$(echo "$host_pack_inst""$pack_req_list" | sort | uniq -d)
+    # Get list of missing required packages on host
+    local missing_packages=$(echo "$installed_packages""$pack_req_list" | sort | uniq -u)
+    if [ -n "$missing_packages" ]; then
+        echo "Missing required packages detected:"
+        echo $missing_packages
+        echo ""
+        if [ "${_ENABLE_AUTO_PKG_UPDATE}" -eq 0 ]; then
+            # Init UbuntuRequired text
+            UbuntuRequiredFile=$(mktemp)
+            echo "[WARNING] Following required packages are not installed:" > $UbuntuRequiredFile
+            echo "$missing_packages" >> $UbuntuRequiredFile
+            echo "" >> $UbuntuRequiredFile
+            echo "ST recommands to install these packages (provided by OpenEmbedded/Yocto) for OpenSTLinux build" >> $UbuntuRequiredFile
+            echo "" >> $UbuntuRequiredFile
+            echo "Feel free to update your distribution, or to ignore the WARNING (at your risk)..." >> $UbuntuRequiredFile
+            local pkg_noupdate=0
+            # Select mode to dialogue with user
+            if ! [ -z "$DISPLAY" ] && ! [ -z "${UI_CMD}" ]; then
+                # UI mode (through dialogue boxes)
+                if (${UI_CMD} --title "UBUNTU PACKAGE UPDATE SUPPORT" --yesno "$(cat $UbuntuRequiredFile)" 0 0 --yes-button "IGNORE WARNING" --no-button "EXIT"); then
+                    pkg_noupdate=1
+                fi
+            else
+                # Default console mode
+                local answer=
+                local wrong_answer=0
+                cat $UbuntuRequiredFile
+                while [ -z "$answer" ] && [ "$wrong_answer" -lt "$TRIALMAX" ]; do
+                    echo -n "Would you ignore this warning ? (y/n) "
+                    read -r -t $READTIMEOUT answer
+                    if [ "$?" -gt "128" ]; then
+                        echo
+                        echo "[WARNING] Timeout reached"
+                        echo "[WARNING] Default answer to 'no'."
+                        echo
+                        answer="no"
+                    elif (echo -n $answer | grep -q -e "^[yY][a-zA-Z]*$"); then
+                        answer="yes"
+                    elif (echo -n $answer | grep -q -e "^[nN][a-zA-Z]*$"); then
+                        answer="no"
+                    else
+                        answer=
+                        wrong_answer=$((wrong_answer+1))
+                        if [ "$wrong_answer" -eq "$TRIALMAX" ]; then
+                            echo
+                            echo "[WARNING] Maximum trials reached"
+                            echo "[WARNING] Default answer to 'no'."
+                            echo
+                            answer="no"
+                        fi
+                    fi
+                done
+                # Convert answer to expected return value
+                if [ "$answer" = "yes" ]; then
+                    pkg_noupdate=1
+                fi
+            fi
+            # Remove temporary file
+            rm -f $UbuntuRequiredFile
+            if [ "$pkg_noupdate" -eq 0 ]; then
+                echo "To update your Linux Distribution packages, two proposals:"
+                echo "  1) run again $(basename ${BASH_SOURCE}) script with '--pkg-update' option"
+                echo "  OR"
+                echo "  2) before running $(basename ${BASH_SOURCE}) script, launch first in your Linux console:"
+                echo "sudo apt-get update"
+                echo "sudo apt-get install "$missing_packages
+                echo
+                return 1
+            else
+                echo "Ignoring missing required packages for OpenSTLinux build..."
+                echo
+            fi
+        else
+            echo ""
+            echo "[AUTOMATIC PACKAGE UPDATE start]"
+            sudo apt-get update
+            sudo apt-get install -q -y $missing_packages
+            echo "[AUTOMATIC PACKAGE UPDATE done]"
+            echo
+        fi
+    else
+        echo "Check OK: all required packages are installed on host."
+        echo
+    fi
+    return 0
+}
+
 
 ######################################################
 # Since this script is sourced, be careful not to pollute
@@ -1133,8 +1249,10 @@ _stoe_unset() {
     unset _DL_CACHEPREFIX
     unset _SSTATE_CACHEPREFIX
     unset _NCPU
+    unset _REQUIREDPACKAGE_PATH
     unset _SITECONFSAMPLE_PATH
     unset _FORCE_RECONF
+    unset _ENABLE_AUTO_PKG_UPDATE
     unset _ENABLE_UI
     unset _INIT
     unset _BUILDSYSTEM
@@ -1168,7 +1286,7 @@ _stoe_unset() {
     unset -f eula_askuser
     unset -f _stoe_distrib_check
     # Delete File
-    rm -f ${LISTDIR}
+    [ -f ${LISTDIR} ] && rm -f ${LISTDIR}
 }
 
 ######################################################
@@ -1251,9 +1369,10 @@ case $ret in
 esac
 
 # Init parameters
-_ENABLE_UI=1
-_FORCE_RECONF=0
-_QUIET=0
+_ENABLE_AUTO_PKG_UPDATE=${_ENABLE_AUTO_PKG_UPDATE:-0}
+_ENABLE_UI=${_ENABLE_UI:-1}
+_FORCE_RECONF=${_FORCE_RECONF:-0}
+_QUIET=${_QUIET:-0}
 READTIMEOUT=${READTIMEOUT:-60}
 TRIALMAX=${TRIALMAX:-100}
 
@@ -1277,6 +1396,9 @@ do
         ;;
     --no-ui)
         _ENABLE_UI=0
+        ;;
+    --pkg-update)
+        _ENABLE_AUTO_PKG_UPDATE=1
         ;;
     -*)
         echo "Wrong parameter: $1"
@@ -1306,7 +1428,7 @@ done
 _stoe_set_env_init
 
 #----------------------------------------------
-# Check if Linux Distrib is supported
+# Check that HOST Linux Distrib is supported
 #
 echo "[HOST DISTRIB check]"
 _stoe_distrib_check
