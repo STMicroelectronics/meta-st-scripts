@@ -1,5 +1,4 @@
 #!/bin/bash -
-
 unalias -a
 
 _FORMAT_PATTERN='£-£'
@@ -1385,7 +1384,7 @@ do
     --help)
         stoe_help
         _stoe_utilities
-        return 1
+        return 0
         ;;
     --quiet)
         _QUIET=1
@@ -1618,3 +1617,6 @@ _default_config_set
 # Clear user's environment from temporary variables
 #
 _stoe_unset
+
+# Set default return code
+return 0
