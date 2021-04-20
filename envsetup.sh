@@ -953,7 +953,7 @@ _choice_shell() {
         echo -n "Which one would you like? [${default_choice}] "
         read -r -t $READTIMEOUT answer
         # Check that user has answered before timeout, else break
-        [ "$?" -gt "128" ] && break
+        [ "$?" -eq "0" ] || break
 
         if [ -z "$answer" ] && [ -n "$default_choice" ]; then
             selection=${default_choice}
