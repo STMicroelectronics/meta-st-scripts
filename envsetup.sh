@@ -184,7 +184,7 @@ _stoe_config_read() {
     local builddir=$(readlink -f $1)
     local stoe_var=$2
     local findconfig=""
-    local findconfig_append=""
+    local findconfig_addons=""
     local toformat="NO"
 
     if ! [ -z "$(grep -Rs "^[ \t]*$stoe_var[ \t+]*=" $builddir/conf/*.conf)" ]; then
@@ -195,8 +195,8 @@ _stoe_config_read() {
             # If multiple config are set, select the one from local.conf file (same as bitbake preference order)
             [ "$(echo "$findconfig" | wc -l)" -gt 1 ] && findconfig=$(echo "$findconfig" | grep "local\.conf")
             # Manage to append any "+=" or "=+" to current defined config
-            findconfig_append=$(grep -Rs -e "^[ \t]*$stoe_var[ \t]*+=" -e "^[ \t]*$stoe_var[ \t]*=+" $builddir/conf/*.conf)
-            [ -z "$findconfig_append" ] || findconfig=$(echo -e "$findconfig\n$findconfig_append")
+            findconfig_addons=$(grep -Rs -e "^[ \t]*$stoe_var[ \t]*+=" -e "^[ \t]*$stoe_var[ \t]*=+" $builddir/conf/*.conf)
+            [ -z "$findconfig_addons" ] || findconfig=$(echo -e "$findconfig\n$findconfig_addons")
             toformat="YES"
         else
             # Config defined as "=+" or "+=" only in conf file
