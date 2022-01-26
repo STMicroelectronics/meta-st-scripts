@@ -9,7 +9,7 @@ _SITECONFSAMPLE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
 # Set supported Linux Distrib Release
 #
 _SUPPORTED_LINUX_DISTRIB="Ubuntu"
-_SUPPORTED_UBUNTU_RELEASE="16.04 18.04 20.04"
+_SUPPORTED_UBUNTU_RELEASE="18.04 20.04"
 
 #----------------------------------------------
 # Set default layer root
@@ -1125,7 +1125,7 @@ _stoe_distrib_check() {
         else
             echo "[WARNING] Skip checking for Linux Distrib required package installation."
             echo "[WARNING] (missing ${host_distrib}_${host_release} file in ${_REQUIREDPACKAGE_PATH} folder)"
-            echo
+            return_value=1
         fi
     fi
     # Remove temporary file
