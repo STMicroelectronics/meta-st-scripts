@@ -839,6 +839,10 @@ conf_notes()
 #
 get_templateconf()
 {
+    if [ -n "$TEMPLATECONF" ]; then
+        _TEMPLATECONF="$TEMPLATECONF"
+        return 0
+    fi
     if [ "$DISTRO" = "nodistro" ]; then
         #for nodistro choice use default sample files from openembedded-core
         echo ""
@@ -861,12 +865,23 @@ get_templateconf()
             echo ""
             return 1
         fi
+        # test if _TEMPLATECONF=<path>/templates/<distro> exist
+        # test if _TEMPLATECONF=<path>/templates/default exist
+        # test if _TEMPLATECONF=<path>/template exist
         #configure _TEMPLATECONF path
-        if [ -f $distro_path/conf/template/bblayers.conf.sample ]; then
-            _TEMPLATECONF=$distro_path/conf/template
+        if [ -f $distro_path/conf/templates/$DISTRO/bblayers.conf.sample ]; then
+            _TEMPLATECONF=$distro_path/conf/templates/$DISTRO
         else
-            echo "[WARNING] default template configuration files not found in $_META_LAYER_ROOT layer: using default ones from openembedded"
-            _TEMPLATECONF=""
+            if [ -f $distro_path/conf/templates/default/bblayers.conf.sample ]; then
+                _TEMPLATECONF=$distro_path/conf/templates/default
+            else
+                if [ -f $distro_path/conf/template/bblayers.conf.sample ]; then
+                    _TEMPLATECONF=$distro_path/conf/template/
+                else
+                    echo "[WARNING] default template configuration files not found in $_META_LAYER_ROOT layer: using default ones from openembedded"
+                    _TEMPLATECONF=""
+                fi
+            fi
         fi
     fi
 }
@@ -1245,6 +1260,7 @@ _stoe_unset() {
     unset DISTRO_INIT
     unset MACHINE
     unset MACHINE_INIT
+    unset TEMPLATECONF
     unset _DL_CACHEPREFIX
     unset _SSTATE_CACHEPREFIX
     unset _NCPU
