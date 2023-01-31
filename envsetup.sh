@@ -878,8 +878,10 @@ get_templateconf()
                 if [ -f $distro_path/conf/template/bblayers.conf.sample ]; then
                     _TEMPLATECONF=$distro_path/conf/template/
                 else
-                    echo "[WARNING] default template configuration files not found in $_META_LAYER_ROOT layer: using default ones from openembedded"
-                    _TEMPLATECONF=""
+                    echo ""
+                    echo "[ERROR] Default template configuration files not found in $_META_LAYER_ROOT layer"
+                    echo ""
+                    return 1
                 fi
             fi
         fi
@@ -1564,8 +1566,8 @@ echo -en "[source $_BUILDSYSTEM/oe-init-build-env]"
 [ "$_INIT" -eq 0 ] && echo "[with previous config]"
 get_templateconf
 [ "$?" -eq 1 ] && { _stoe_unset; return 1; }
-TEMPLATECONF_relative=$( realpath -m --relative-to=${ROOTOE}/$BUILD_DIR/conf $_TEMPLATECONF)
-TEMPLATECONF=${TEMPLATECONF_relative} source ${ROOTOE}/$_BUILDSYSTEM/oe-init-build-env ${BUILD_DIR} > /dev/null
+[ -n "$_TEMPLATECONF" ] && TEMPLATECONF_relative=$(realpath -m --relative-to=${ROOTOE}/$BUILD_DIR/conf $_TEMPLATECONF)
+TEMPLATECONF=${TEMPLATECONF_relative:-} source ${ROOTOE}/$_BUILDSYSTEM/oe-init-build-env ${BUILD_DIR} > /dev/null
 [ "$?" -eq 1 ] && { _stoe_unset; return 1; }
 
 #----------------------------------------------
