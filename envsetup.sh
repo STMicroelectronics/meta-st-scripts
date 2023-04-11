@@ -1,7 +1,8 @@
 #!/bin/bash -
 unalias -a
 
-_FORMAT_PATTERN='£-£'
+_EXTRA_CHAR="${_EXTRA_CHAR:-##}"
+_FORMAT_PATTERN="${_EXTRA_CHAR}-${_EXTRA_CHAR}"
 _REQUIREDPACKAGE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
 _SITECONFSAMPLE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
 
@@ -952,7 +953,7 @@ _choice_shell() {
     local choice_list=$2
     local default_choice=$3
     #format list to have display aligned on column with '-' separation between name and description
-    local options=$(echo "${choice_list}" | column -t -s "£")
+    local options=$(echo "${choice_list}" | column -t -s "${_EXTRA_CHAR}")
     #change separator from 'space' to 'end of line' for 'select' command
     old_IFS=$IFS
     IFS=$'\n'
