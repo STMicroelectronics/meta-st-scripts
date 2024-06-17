@@ -10,7 +10,7 @@ _SITECONFSAMPLE_PATH=$(dirname $(readlink -f ${BASH_SOURCE}))
 # Set supported Linux Distrib Release
 #
 _SUPPORTED_LINUX_DISTRIB="Ubuntu"
-_SUPPORTED_UBUNTU_RELEASE="20.04 22.04"
+_SUPPORTED_UBUNTU_RELEASE="20.04 22.04 24.04"
 
 #----------------------------------------------
 # Set default layer root
