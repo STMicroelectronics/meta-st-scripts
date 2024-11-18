@@ -492,7 +492,7 @@ eula_check() {
     if [ "$(echo $machine_file | wc -w)" -gt 1 ]; then
         echo "[ERROR] More than one $MACHINE found in ${_META_LAYER_ROOT}. Please cleanup/clarify:"
         echo "${machine_file#*${ROOTOE}/}"
-        echo
+        echo ""
         return 1
     else
         # Init EULA licence file path
@@ -640,7 +640,7 @@ conf_siteconf()
             fi
         fi
         if ! [ -z "$FORCE_SSTATE_CACHEPREFIX" ]; then
-            if ! [-z "$(grep ^[#]*SSTATE_DIR conf/site.conf)" ]; then
+            if ! [ -z "$(grep ^[#]*SSTATE_DIR conf/site.conf)" ]; then
                 sed -e 's|^[#]*SSTATE_DIR.*|SSTATE_DIR = "'"${FORCE_SSTATE_CACHEPREFIX}"'/oe-sstate-cache"|g' -i conf/site.conf
             else
                 echo "# Configure sstate cache folder" >> conf/site.conf
@@ -815,7 +815,9 @@ BBLAYERS =+ "${ROOTOE}/$_META_LAYER_ROOT/$_BSP_LAYER_REQUIRED"
 EOF
         fi
     else
-        echo "[WARNING] Not able to find ${MACHINE}.conf file in ${_META_LAYER_ROOT} : bblayer.conf not updated..."
+        echo "[ERROR] Not able to find ${MACHINE}.conf file in ${_META_LAYER_ROOT} : bblayer.conf cannot be updated."
+        echo ""
+        return 1
     fi
 }
 
@@ -1600,6 +1602,7 @@ if [ "$_INIT" -eq 1 ]; then
     conf_localconf
     # Update bblayer.conf with specific machine bsp layer path
     conf_bblayerconf
+    [ "$?" -eq 1 ] && { rm -rf $BUILDDIR/conf/*; _stoe_unset; return 1; }
     # Copy specific 'conf-notes.txt' file from templateconf to BUILDDIR
     conf_notes
 fi
